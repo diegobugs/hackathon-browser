@@ -1,6 +1,11 @@
 import React, { useEffect, useRef } from 'react'
+import { Langchain } from './langchain'
 
 const LOCATION = 'http://localhost:3000'
+
+//const USER_PROMPT = 'Write Colima on the from field from the search form'
+const USER_PROMPT =
+  'Escribe Colima en el campo de origen del formulario de búsqueda'
 
 function App() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -9,14 +14,52 @@ function App() {
     const iframe = iframeRef.current
 
     if (iframe) {
-      iframe.addEventListener('load', () => {
+      iframe.addEventListener('load', async () => {
         iframe.style.border = '2px solid green'
         // Add event to catch iframe loaded event
         const iDocument = iframe.contentDocument
 
         // Change background color of iframe
         if (iDocument) {
-          const body: any = iDocument.querySelector('body')
+          const content: any = iDocument.querySelector('.layout-grid-routes')
+          const langchain = new Langchain()
+          const element = await langchain.retrieveElement(
+            content.innerHTML,
+            USER_PROMPT
+          )
+
+          if (element) {
+            // Get element selector
+            const selector = await langchain.retrieveElementSelector(element)
+
+            if (selector) {
+              // Get action from user input [click | type]
+              const action = await langchain.retrieveAction(USER_PROMPT)
+
+              // Execute the action over the element
+              if (action) {
+                const value = await langchain.retrieveValue(action, USER_PROMPT)
+                console.log('value', value)
+
+                if (action === 'click') {
+                  const element = iDocument.querySelector(selector)
+                  console.log('element', element)
+
+                  if (element) {
+                    element.click()
+                  }
+                } else if (action === 'type') {
+                  const element = iDocument.querySelector(selector)
+                  console.log('element', element)
+                  if (element) {
+                    element.click()
+                    element.value = value
+                    element.dispatchEvent(new Event('input'))
+                  }
+                }
+              }
+            }
+          }
         }
       })
     }
