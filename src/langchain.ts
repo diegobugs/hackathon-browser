@@ -1,8 +1,8 @@
 import { Configuration, OpenAIApi } from 'openai'
 
 const configuration = new Configuration({
-  organization: import.meta.env.VITE_APP_OPENAI_ORG,
-  apiKey: import.meta.env.VITE_APP_OPENAI_API,
+  organization: 'org-scTtDRuncpaYiFm4kWWdLvUt',
+  apiKey: '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',
 })
 
 export class Langchain {
@@ -14,22 +14,62 @@ export class Langchain {
 
   async retrieveElement(input: string, prompt: string) {
     try {
-      const response = await this.model.createCompletion({
+      const content = `
+      Find the HTML element that better matches to the user prompt from the given HTML.
+      Output only the HTML element.            
+      
+      The actual HTML is:
+      ${input}
+      
+      User prompt: ${prompt}
+      
+      Limitations: Full element found in the actual HTML.
+      Scope: html
+      Tone: computer
+      `
+      const response = await this.model.createChatCompletion({
         temperature: 0,
-        model: 'text-davinci-003',
-        prompt: `
-        Find the HTML element that better matches to the user prompt from the given HTML.
-        Output only the HTML element.            
-        
-        The actual HTML is:
-        ${input}
-        
-        User prompt: ${prompt}
-        
-        Limitations: Full element found in the actual HTML.
-        Scope: html
-        Tone: computer
-        `,
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'user',
+            content,
+          },
+        ],
+      })
+
+      if (response && response.data.choices) {
+        const { message } = response.data.choices[0]
+
+        const text = message?.content.trim()
+        return text
+      }
+      return false
+    } catch (error) {
+      return false
+    }
+  }
+
+  async retrieveElementSelector(element: string) {
+    try {
+      const content = `
+      Retrieve the HTML element selector for the current element. Provide the most precise HTML element selector for the given element. 
+              
+      HTML element: ${element}
+
+      Format: HTML element selector.
+      Limitations: only the HTML element selector, don't add anymore.
+      Tone: computer
+      `
+      const response = await this.model.createChatCompletion({
+        temperature: 0,
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'user',
+            content,
+          },
+        ],
       })
 
       if (response && response.data.choices) {
@@ -43,24 +83,31 @@ export class Langchain {
     }
   }
 
-  async retrieveElementSelector(element: string) {
+  async retrieveElementSelectorChat(element: string) {
     try {
-      const response = await this.model.createCompletion({
-        temperature: 0,
-        model: 'text-davinci-003',
-        prompt: `
-        Retrieve the HTML element selector for the current element. Provide the most precise HTML element selector for the given element. 
-                
-        HTML element: ${element}
+      const content = `
+      Retrieve the HTML element selector for the current element. Provide the most precise HTML element selector for the given element. 
+              
+      HTML element: ${element}
 
-        Format: HTML element selector.
-        Limitations: only the HTML element selector, don't add anymore.
-        Tone: computer
-        `,
+      Format: HTML element selector.
+      Limitations: only the HTML element selector, don't add anymore.
+      Tone: computer
+      `
+      const response = await this.model.createChatCompletion({
+        temperature: 0,
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'user',
+            content,
+          },
+        ],
       })
 
       if (response && response.data.choices) {
-        const { text } = response.data.choices[0]
+        const { message } = response.data.choices[0]
+        const text = message?.content.trim()
 
         return text?.trim()
       }
