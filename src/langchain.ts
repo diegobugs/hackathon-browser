@@ -1,8 +1,8 @@
 import { Configuration, OpenAIApi } from 'openai'
 
 const configuration = new Configuration({
-  organization: 'org-scTtDRuncpaYiFm4kWWdLvUt',
-  apiKey: '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',
+  organization: import.meta.env.VITE_APP_OPENAI_ORG,
+  apiKey: import.meta.env.VITE_APP_OPENAI_API,
 })
 
 export class Langchain {
@@ -73,9 +73,9 @@ export class Langchain {
       })
 
       if (response && response.data.choices) {
-        const { text } = response.data.choices[0]
+        const { message } = response.data.choices[0]
 
-        return text?.trim()
+        return message?.content?.trim()
       }
       return false
     } catch (error) {
@@ -151,7 +151,7 @@ export class Langchain {
     try {
       const content = `
       Retrieve only the value to ${action} specified in the user input,
-      limitations: just give the value, don't add anymore.
+      limitations: just give the value, don't add anymore. If the value is numeric return just numbers.
       user input: ${prompt}
       `
 
@@ -176,9 +176,10 @@ export class Langchain {
   }
 
   async retrieveAssert(prompt: string) {
-    const asserts = ['contains', 'isVisible']
+    const asserts = ['contains', 'wait']
     const content = `
-    Retrieve just the supported assert keyword that matches with the user input if it is specified, if not return empty string:
+    Retrieve just the supported keyword that matches with the user input if it is specified, if not return empty string.      
+
     user input: ${prompt}
     limitations: ${asserts.join(',')}
     `
@@ -194,53 +195,9 @@ export class Langchain {
     })
     if (response && response.data.choices) {
       const { message } = response.data.choices[0]
-      return message?.content
-    }
-    return false
-  }
 
-  async retrieveAssertContainsValue(prompt: string) {
-    const content = `
-    Retrieve only the value that should be contained specified in the user input,
-    limitations: just give the value, don't add anymore.
-    user input: ${prompt}
-    `
-    const response = await this.model.createChatCompletion({
-      temperature: 0,
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content,
-        },
-      ],
-    })
-    if (response && response.data.choices) {
-      const { message } = response.data.choices[0]
-      return message?.content
-    }
-    return false
-  }
-
-  async retrieveAssertContainsElement(element: string, containedValue: string) {
-    const content = `
-    Response yes if the contained value is in the element.
-    contained value: ${containedValue}
-    element: ${element}
-    `
-    const response = await this.model.createChatCompletion({
-      temperature: 0,
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content,
-        },
-      ],
-    })
-    if (response && response.data.choices) {
-      const { message } = response.data.choices[0]
-      return message?.content
+      const text = message?.content.trim()
+      if (text) return asserts.find((el) => text.includes(el))
     }
     return false
   }

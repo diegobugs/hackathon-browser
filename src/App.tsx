@@ -1,3 +1,5 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-plusplus */
 /* eslint-disable react/no-array-index-key */
 import React, { useEffect, useRef, useState } from 'react'
 import { Langchain } from './langchain'
@@ -77,8 +79,9 @@ function App() {
     const newSequence = {
       containerSelector: currentContainerSelector,
       prompt: currentPrompt,
+      type: currentPrompt.type,
       selector: '',
-      error: false,
+      error: undefined,
     }
 
     setSequence((state: any) =>
@@ -87,108 +90,228 @@ function App() {
     setCurrentPrompt(null)
   }
 
+  const handleActionSequence = async (
+    prompt: Prompt,
+    containerSelector: string,
+    index: number,
+    iDocument: any
+  ) => {
+    try {
+      const langchain = new Langchain()
+      const content: any = iDocument.querySelector(containerSelector)
+      setRunningSequence(index)
+
+      const element = await langchain.retrieveElement(
+        content.innerHTML,
+        prompt.text
+      )
+
+      if (element) {
+        // Get element selector
+        const selector = await langchain.retrieveElementSelectorChat(element)
+        setSequence((state) => {
+          const newState = [...state]
+          newState[index].element = element
+          return newState
+        })
+
+        if (selector) {
+          setSequence((state) => {
+            const newState = [...state]
+            newState[index].selector = selector
+            return newState
+          })
+
+          // Get action from user input [click | type]
+          const action = await langchain.retrieveAction(prompt.text)
+          // Execute the action over the element
+          if (action) {
+            setSequence((state) => {
+              const newState = [...state]
+              newState[index].type = action
+              return newState
+            })
+            const value = await langchain.retrieveValue(action, prompt.text)
+
+            setSequence((state) => {
+              const newState = [...state]
+              newState[index].value = value
+              return newState
+            })
+
+            if (action === 'click') {
+              const selectedElement = iDocument.querySelector(
+                `${containerSelector} ${selector}`
+              )
+
+              if (selectedElement) {
+                selectedElement.dispatchEvent(new Event('click'))
+              }
+            } else if (action === 'type') {
+              const selectedElement = iDocument.querySelector(
+                `${containerSelector} ${selector}`
+              )
+
+              if (selectedElement) {
+                selectedElement.dispatchEvent(new Event('click'))
+                await waitUntil(1000)
+                selectedElement.value = value
+                selectedElement.dispatchEvent(new Event('input'))
+              }
+            }
+            setSequence((state) => {
+              const newState = [...state]
+              newState[index].error = false
+              return newState
+            })
+          } else {
+            throw new Error('Action not found')
+          }
+        } else {
+          throw new Error('Selector not found')
+        }
+      } else {
+        throw new Error('Element not found')
+      }
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
+  const handleAssertSequence = async (
+    prompt: Prompt,
+    containerSelector: string,
+    index: number,
+    iDocument: any
+  ) => {
+    try {
+      const langchain = new Langchain()
+      // Get assert from user input [contains | wait]
+      const assert = await langchain.retrieveAssert(prompt.text)
+
+      if (assert) {
+        setSequence((state) => {
+          const newState = [...state]
+          newState[index].type = assert
+          return newState
+        })
+        const value = await langchain.retrieveValue(assert, prompt.text)
+        setSequence((state) => {
+          const newState = [...state]
+          newState[index].value = value
+          return newState
+        })
+
+        // Do assert depending on the type
+        if (assert === 'contains' && value) {
+          const content: any = iDocument.querySelector(containerSelector)
+
+          const element = await langchain.retrieveElement(
+            content.innerHTML,
+            prompt.text
+          )
+
+          const selector = await langchain.retrieveElementSelectorChat(element)
+          setSequence((state) => {
+            const newState = [...state]
+            newState[index].element = element
+            return newState
+          })
+
+          const selectedElement = iDocument.querySelector(
+            `${containerSelector} ${selector}`
+          )
+
+          if (selectedElement) {
+            if (selectedElement.innerHTML.includes(value)) {
+              setSequence((state) => {
+                const newState = [...state]
+                newState[index].error = false
+                return newState
+              })
+            } else {
+              setSequence((state) => {
+                const newState = [...state]
+                newState[index].error = true
+                return newState
+              })
+            }
+          }
+        } else if (assert === 'wait') {
+          if (!Number.isNaN(Number(value))) {
+            console.log('antes del timer ', value)
+
+            const timeSeconds =
+              Number(value) <= 1000 ? Number(value) * 1000 : Number(value)
+            await waitUntil(Number(timeSeconds))
+            setSequence((state) => {
+              const newState = [...state]
+              newState[index].error = false
+              return newState
+            })
+            console.log('luego del timer ', value)
+          }
+        } else {
+          throw new Error('Invalid assert')
+        }
+      } else {
+        throw new Error('Assert not found')
+      }
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
   const handlePlaySequence = async () => {
     try {
       if (running) return
       setRunning(true)
+
       const iframe = iframeRef.current
       // Add event to catch iframe loaded event
       const iDocument = iframe!.contentDocument
 
       // Change background color of iframe
       if (iDocument) {
-        const langchain = new Langchain()
-
         if (sequence && sequence.length > 0) {
-          const sequencesRunning = sequence.map(
-            async ({ prompt, containerSelector }, index) => {
-              try {
-                const content: any = iDocument.querySelector(containerSelector)
-                setRunningSequence(index)
+          for (let index = 0; index < sequence.length; index++) {
+            try {
+              const { prompt, containerSelector, type } = sequence[index]
 
-                const element = await langchain.retrieveElement(
-                  content.innerHTML,
-                  prompt.text
+              setRunningSequence(index)
+
+              if (type === 'assert') {
+                await handleAssertSequence(
+                  prompt,
+                  containerSelector,
+                  index,
+                  iDocument
                 )
-
-                if (element) {
-                  // Get element selector
-                  const selector = await langchain.retrieveElementSelectorChat(
-                    element
-                  )
-                  setSequence((state) => {
-                    const newState = [...state]
-                    newState[index].element = element
-                    return newState
-                  })
-
-                  if (selector) {
-                    setSequence((state) => {
-                      const newState = [...state]
-                      newState[index].selector = selector
-                      return newState
-                    })
-                    // Get action from user input [click | type]
-                    const action = await langchain.retrieveAction(prompt.text)
-
-                    // Execute the action over the element
-                    if (action) {
-                      setSequence((state) => {
-                        const newState = [...state]
-                        newState[index].type = action
-                        return newState
-                      })
-                      const value = await langchain.retrieveValue(
-                        action,
-                        prompt.text
-                      )
-
-                      setSequence((state) => {
-                        const newState = [...state]
-                        newState[index].value = value
-                        return newState
-                      })
-
-                      if (action === 'click') {
-                        const selectedElement = iDocument.querySelector(
-                          `${containerSelector} ${selector}`
-                        )
-
-                        if (selectedElement) {
-                          selectedElement.dispatchEvent(new Event('click'))
-                        }
-                      } else if (action === 'type') {
-                        const selectedElement = iDocument.querySelector(
-                          `${containerSelector} ${selector}`
-                        )
-
-                        if (selectedElement) {
-                          selectedElement.dispatchEvent(new Event('click'))
-                          await waitUntil(1000)
-                          selectedElement.value = value
-                          selectedElement.dispatchEvent(new Event('input'))
-                        }
-                      }
-                    }
-                  }
-                }
-              } catch (error) {
-                console.log(error)
-                setSequence((state) => {
-                  const newState = [...state]
-                  newState[index].error = true
-                  return newState
-                })
-                throw error
+              } else if (type === 'action') {
+                await handleActionSequence(
+                  prompt,
+                  containerSelector,
+                  index,
+                  iDocument
+                )
               }
+            } catch (error) {
+              console.error('Fallo en este lugar ', error)
+              setSequence((state) => {
+                const newState = [...state]
+                newState[index].error = true
+                return newState
+              })
+              throw error
             }
-          )
-          await Promise.all(sequencesRunning)
-          setRunning(false)
-          setRunningSequence(undefined)
+          }
         }
       }
     } catch (error) {
+      console.error(error)
+    } finally {
       setRunning(false)
       setRunningSequence(undefined)
     }
@@ -225,6 +348,11 @@ function App() {
   const handleChangeLocation = (event: any) => {
     const { value } = event.target
     setLocation(value)
+  }
+
+  const getColor = (param?: boolean) => {
+    if (typeof param === 'undefined') return 'bg-gray-500'
+    return param ? 'bg-red-500' : 'bg-green-500'
   }
 
   return (
@@ -270,22 +398,24 @@ function App() {
                       </div>
                       <div className="flex flex-row justify-end">
                         <span
-                          className={`text-sm  text-center px-4 ${
-                            error ? 'bg-red-700' : 'bg-green-700'
-                          }`}
+                          className={`text-sm  text-center px-4 ${getColor(
+                            error
+                          )}`}
                         >
                           {prompt.type}
                         </span>
                       </div>
                     </div>
-                    <div>
-                      <span className="text-sm">Container </span>
-                      <span className="text-sm text-gray-400">
-                        {containerSelector}
-                      </span>
-                    </div>
+                    {containerSelector && (
+                      <div>
+                        <span className="text-sm">Container </span>
+                        <span className="text-sm text-gray-400">
+                          {containerSelector}
+                        </span>
+                      </div>
+                    )}
                     <span className="text-sm">{prompt.text}</span>
-                    {selector && (
+                    {(selector || value) && (
                       <div className="p-2 bg-gray-900">
                         <span className="text-xs">{element}</span>
                         <span className="text-xs">{'> '}</span>
