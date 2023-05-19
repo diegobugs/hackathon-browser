@@ -1,123 +1,136 @@
 import { Configuration, OpenAIApi } from 'openai'
 
 const configuration = new Configuration({
-  organization: 'org-scTtDRuncpaYiFm4kWWdLvUt',
-  apiKey: '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',
+  organization: import.meta.env.VITE_APP_OPENAI_ORG,
+  apiKey: import.meta.env.VITE_APP_OPENAI_API,
 })
 
 export class Langchain {
   model: OpenAIApi
-  memory: any
 
   constructor() {
     this.model = new OpenAIApi(configuration)
-    this.memory = null
   }
 
-  /* async readBuffer(buffer) {
-    await this.chain.call({ input: buffer })
-  } */
+  async retrieveElement(input: string, prompt: string) {
+    try {
+      const response = await this.model.createCompletion({
+        temperature: 0,
+        model: 'text-davinci-003',
+        prompt: `
+        Find the HTML element that better matches to the user prompt from the given HTML.
+        Output only the HTML element.            
+        
+        The actual HTML is:
+        ${input}
+        
+        User prompt: ${prompt}
+        
+        Limitations: Full element found in the actual HTML.
+        Scope: html
+        Tone: computer
+        `,
+      })
 
-  async agent() {}
+      if (response && response.data.choices) {
+        const { text } = response.data.choices[0]
 
-  prepareString(input: string) {
-    return input.split('\n')
-  }
-
-  // Haz clic en el botón de buscar
-  // Traducido: CLick on the search button
-
-  async retrieveElement(input: any, prompt: string) {
-    const response = await this.model.createCompletion({
-      temperature: 0,
-      model: 'text-davinci-001',
-      prompt: `
-          Retrieve only the HTML element that better matches to the user prompt.
-      Answer only a valid HTML element that is in the given HTML.
-      
-      The actual HTML is:
-      ${input}
-      
-      ${prompt}`,
-    })
-
-    if (response && response.data.choices) {
-      const { text } = response.data.choices[0]
-
-      return text?.trim()
+        return text?.trim()
+      }
+      return false
+    } catch (error) {
+      return false
     }
   }
 
   async retrieveElementSelector(element: string) {
-    const response = await this.model.createCompletion({
-      temperature: 0,
-      model: 'text-davinci-001',
-      prompt: `
-      Retrieve only the html selector that matches the current element.
-      Output only a valid html selector for the given element. Be the most precise as possible.    
+    try {
+      const response = await this.model.createCompletion({
+        temperature: 0,
+        model: 'text-davinci-003',
+        prompt: `
+        Retrieve the HTML element selector for the current element. Provide the most precise HTML element selector for the given element. 
+                
+        HTML element: ${element}
 
-      Element: ${element}
-      `,
-    })
+        Format: HTML element selector.
+        Limitations: only the HTML element selector, don't add anymore.
+        Tone: computer
+        `,
+      })
 
-    if (response && response.data.choices) {
-      const { text } = response.data.choices[0]
+      if (response && response.data.choices) {
+        const { text } = response.data.choices[0]
 
-      return text?.trim()
+        return text?.trim()
+      }
+      return false
+    } catch (error) {
+      return false
     }
   }
 
   async retrieveAction(prompt: string) {
-    const actions = ['click', 'type']
-    const content = `
-    Retrieve just the supported actions keyword that matches with the user input if it is specified, if not return empty string:
-    user input: ${prompt}
-    limitations: ${actions.join(',')}
-    `
-    const response = await this.model.createChatCompletion({
-      temperature: 0,
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content,
-        },
-      ],
-    })
-    if (response && response.data.choices) {
-      const { message } = response.data.choices[0]
+    try {
+      const actions = ['click', 'type']
+      const content = `
+      Retrieve just the supported actions keyword that matches with the user input if it is specified, if not return empty string:
+      user input: ${prompt}
+      limitations: ${actions.join(',')}
+      `
+      const response = await this.model.createChatCompletion({
+        temperature: 0,
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'user',
+            content,
+          },
+        ],
+      })
+      if (response && response.data.choices) {
+        const { message } = response.data.choices[0]
 
-      const content = message?.content.trim()
-      if (content) return actions.find((el) => content.includes(el))
+        const text = message?.content.trim()
+        if (text) return actions.find((el) => text.includes(el))
+      }
+      return false
+    } catch (error) {
+      return false
     }
   }
 
   async retrieveValue(action: string, prompt: string) {
-    let content = `
-    Retrieve only the value to ${action} specified in the user input,
-    limitations: just give the value, don't add anymore.
-    user input: ${prompt}
-    `
+    try {
+      const content = `
+      Retrieve only the value to ${action} specified in the user input,
+      limitations: just give the value, don't add anymore.
+      user input: ${prompt}
+      `
 
-    const response = await this.model.createChatCompletion({
-      temperature: 0,
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content,
-        },
-      ],
-    })
-    if (response && response.data.choices) {
-      const { message } = response.data.choices[0]
-      return message?.content
+      const response = await this.model.createChatCompletion({
+        temperature: 0,
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'user',
+            content,
+          },
+        ],
+      })
+      if (response && response.data.choices) {
+        const { message } = response.data.choices[0]
+        return message?.content
+      }
+      return false
+    } catch (error) {
+      return false
     }
   }
 
   async retrieveAssert(prompt: string) {
     const asserts = ['contains', 'isVisible']
-    let content = `
+    const content = `
     Retrieve just the supported assert keyword that matches with the user input if it is specified, if not return empty string:
     user input: ${prompt}
     limitations: ${asserts.join(',')}
@@ -136,10 +149,11 @@ export class Langchain {
       const { message } = response.data.choices[0]
       return message?.content
     }
+    return false
   }
 
   async retrieveAssertContainsValue(prompt: string) {
-    let content = `
+    const content = `
     Retrieve only the value that should be contained specified in the user input,
     limitations: just give the value, don't add anymore.
     user input: ${prompt}
@@ -158,10 +172,11 @@ export class Langchain {
       const { message } = response.data.choices[0]
       return message?.content
     }
+    return false
   }
 
   async retrieveAssertContainsElement(element: string, containedValue: string) {
-    let content = `
+    const content = `
     Response yes if the contained value is in the element.
     contained value: ${containedValue}
     element: ${element}
@@ -180,5 +195,6 @@ export class Langchain {
       const { message } = response.data.choices[0]
       return message?.content
     }
+    return false
   }
 }
