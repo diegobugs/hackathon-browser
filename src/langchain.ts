@@ -2,7 +2,7 @@ import { Configuration, OpenAIApi } from 'openai'
 
 const configuration = new Configuration({
   organization: 'org-scTtDRuncpaYiFm4kWWdLvUt',
-  apiKey: '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',
+  apiKey: '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',
 })
 
 export class Langchain {
@@ -28,13 +28,10 @@ export class Langchain {
   // Traducido: CLick on the search button
 
   async retrieveElement(input: any, prompt: string) {
-    const response = await this.model.createChatCompletion({
+    const response = await this.model.createCompletion({
       temperature: 0,
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content: `
+      model: 'text-davinci-001',
+      prompt: `
           Retrieve only the HTML element that better matches to the user prompt.
       Answer only a valid HTML element that is in the given HTML.
       
@@ -42,30 +39,6 @@ export class Langchain {
       ${input}
       
       ${prompt}`,
-        },
-      ],
-    })
-
-    if (response && response.data.choices) {
-      const { message } = response.data.choices[0]
-
-      return message?.content.trim()
-    }
-  }
-
-  async retrieveElementSelector(element: string) {
-    const response = await this.model.createCompletion({
-      temperature: 0,
-      //model: 'gpt-3.5-turbo',
-      model: 'text-davinci-001',
-      prompt: `
-      Retrieve only the selector that matches the current element.
-      Output only a valid selector for the given element. Be the most precise as possible.
-
-      The current element is:
-      ${element}
-
-      `,
     })
 
     if (response && response.data.choices) {
@@ -75,28 +48,22 @@ export class Langchain {
     }
   }
 
-  async retrieveElementSelectorChat(element: string) {
-    const response = await this.model.createChatCompletion({
+  async retrieveElementSelector(element: string) {
+    const response = await this.model.createCompletion({
       temperature: 0,
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content: `
-          Retrieve only the selector that matches the current element.
-      Output only a valid selector for the given element. Be the most precise as possible.
+      model: 'text-davinci-001',
+      prompt: `
+      Retrieve only the html selector that matches the current element.
+      Output only a valid html selector for the given element. Be the most precise as possible.    
 
-      The current element is:
-      ${element}          
-          `,
-        },
-      ],
+      Element: ${element}
+      `,
     })
 
     if (response && response.data.choices) {
-      const { message } = response.data.choices[0]
+      const { text } = response.data.choices[0]
 
-      return message?.content.trim()
+      return text?.trim()
     }
   }
 
@@ -148,14 +115,70 @@ export class Langchain {
     }
   }
 
-  async createTest(action: string, selector: string) {}
-}
-
-function groupArrayElements(array: any[], groupSize: number) {
-  const groupedArray = []
-  for (let i = 0; i < array.length; i += groupSize) {
-    const group = array.slice(i, i + groupSize)
-    groupedArray.push(group.join('\n'))
+  async retrieveAssert(prompt: string) {
+    const asserts = ['contains', 'isVisible']
+    let content = `
+    Retrieve just the supported assert keyword that matches with the user input if it is specified, if not return empty string:
+    user input: ${prompt}
+    limitations: ${asserts.join(',')}
+    `
+    const response = await this.model.createChatCompletion({
+      temperature: 0,
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'user',
+          content,
+        },
+      ],
+    })
+    if (response && response.data.choices) {
+      const { message } = response.data.choices[0]
+      return message?.content
+    }
   }
-  return groupedArray
+
+  async retrieveAssertContainsValue(prompt: string) {
+    let content = `
+    Retrieve only the value that should be contained specified in the user input,
+    limitations: just give the value, don't add anymore.
+    user input: ${prompt}
+    `
+    const response = await this.model.createChatCompletion({
+      temperature: 0,
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'user',
+          content,
+        },
+      ],
+    })
+    if (response && response.data.choices) {
+      const { message } = response.data.choices[0]
+      return message?.content
+    }
+  }
+
+  async retrieveAssertContainsElement(element: string, containedValue: string) {
+    let content = `
+    Response yes if the contained value is in the element.
+    contained value: ${containedValue}
+    element: ${element}
+    `
+    const response = await this.model.createChatCompletion({
+      temperature: 0,
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'user',
+          content,
+        },
+      ],
+    })
+    if (response && response.data.choices) {
+      const { message } = response.data.choices[0]
+      return message?.content
+    }
+  }
 }

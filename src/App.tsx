@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Langchain } from './langchain'
+import Button from './components/Button'
+import Spinner from './components/Spinner'
 
 const LOCATION = 'http://localhost:3000'
 
@@ -11,6 +13,7 @@ interface Prompt {
 }
 
 interface Sequence {
+  containerSelector: string
   prompt: Prompt
   selector?: string
   error: boolean
@@ -29,11 +32,10 @@ function App() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [currentPrompt, setCurrentPrompt] = useState<Prompt | null>()
   const [sequence, setSequence] = useState<Sequence[]>([])
-  const [documentSelector, setDocumentSelector] = useState<string>(
-    '.layout-grid-routes'
-  )
   const [running, setRunning] = useState<boolean>(false)
+  const [containerSelector, setContainerSelector] = useState<string>('')
   const [runningSequence, setRunningSequence] = useState<number>()
+  const [location, setLocation] = useState<string>(LOCATION)
 
   useEffect(() => {
     const iframe = iframeRef.current
@@ -60,12 +62,17 @@ function App() {
     }))
   }
 
+  const handleOnCancel = () => {
+    setCurrentPrompt(null)
+  }
+
   const handleOnSave = () => {
     if (!currentPrompt) return
 
     setSequence((state: any) => [
       ...state,
       {
+        containerSelector: containerSelector,
         prompt: currentPrompt,
         selector: '',
         error: false,
@@ -84,60 +91,69 @@ function App() {
 
     // Change background color of iframe
     if (iDocument) {
-      const content: any = iDocument.querySelector(documentSelector)
       const langchain = new Langchain()
 
       if (sequence && sequence.length > 0) {
-        const sequencesRunning = sequence.map(async ({ prompt }, index) => {
-          setRunningSequence(index)
-          await waitUntil(1000)
-          const element = await langchain.retrieveElement(
-            content.innerHTML,
-            prompt.text
-          )
+        const sequencesRunning = sequence.map(
+          async ({ prompt, containerSelector }, index) => {
+            console.log('containerSelector', containerSelector)
+            const content: any = iDocument.querySelector(containerSelector)
+            setRunningSequence(index)
 
-          if (element) {
-            // Get element selector
-            const selector = await langchain.retrieveElementSelector(element)
+            const element = await langchain.retrieveElement(
+              content.innerHTML,
+              prompt.text
+            )
 
-            if (selector) {
-              // Get action from user input [click | type]
-              const action = await langchain.retrieveAction(prompt.text)
+            if (element) {
+              console.log('element', element)
 
-              // Execute the action over the element
-              if (action) {
-                const value = await langchain.retrieveValue(action, prompt.text)
-                console.log('value', value)
-                console.log('selector', selector)
-                console.log('action', action)
+              // Get element selector
+              const selector = await langchain.retrieveElementSelector(element)
 
-                if (action === 'click') {
-                  const element = iDocument.querySelector(
-                    `${documentSelector} ${selector}`
+              if (selector) {
+                // Get action from user input [click | type]
+                const action = await langchain.retrieveAction(prompt.text)
+
+                // Execute the action over the element
+                if (action) {
+                  const value = await langchain.retrieveValue(
+                    action,
+                    prompt.text
                   )
-                  console.log('element', element)
 
-                  if (element) {
-                    element.dispatchEvent(new Event('click'))
-                  }
-                } else if (action === 'type') {
-                  const element = iDocument.querySelector(
-                    `${documentSelector} ${selector}`
-                  )
-                  console.log('element', element)
-                  if (element) {
-                    element.dispatchEvent(new Event('click'))
-                    await waitUntil(1000)
-                    element.value = value
-                    element.dispatchEvent(new Event('input'))
+                  console.log('value', value)
+                  console.log('action', action)
+                  console.log('selector', selector)
+                  console.log('containerSelector', containerSelector)
+
+                  if (action === 'click') {
+                    const element = iDocument.querySelector(
+                      `${containerSelector} ${selector}`
+                    )
+                    console.log('element', element)
+
+                    if (element) {
+                      element.dispatchEvent(new Event('click'))
+                    }
+                  } else if (action === 'type') {
+                    const element = iDocument.querySelector(
+                      `${containerSelector} ${selector}`
+                    )
+
+                    console.log('element', element)
+                    if (element) {
+                      element.dispatchEvent(new Event('click'))
+                      await waitUntil(1000)
+                      element.value = value
+                      element.dispatchEvent(new Event('input'))
+                    }
                   }
                 }
               }
             }
           }
-
-          console.log('-----------')
-        })
+        )
         await Promise.all(sequencesRunning)
         setRunning(false)
         setRunningSequence(undefined)
@@ -146,17 +162,28 @@ function App() {
   }
 
   const handlePause = () => {
-    console.log('paused')
+    setRunning(false)
   }
 
   const handleRefresh = () => {
     setRunning(false)
     setRunningSequence(undefined)
+
+    // Refesh the iframe
+    const iframe = iframeRef.current
+    if (iframe) {
+      iframe.src = location
+    }
   }
 
   const handleChangeDocumentSelector = (event: any) => {
     const { value } = event.target
-    setDocumentSelector(value)
+    setContainerSelector(value)
+  }
+
+  const handleChangeLocation = (event: any) => {
+    const { value } = event.target
+    setLocation(value)
   }
 
   return (
@@ -164,65 +191,72 @@ function App() {
       <div className="bg-gray-500 p-4 col-span-1">
         <div className="flex flex-row justify-end gap-2">
           <input
-            type="text"
-            value={documentSelector}
-            onChange={handleChangeDocumentSelector}
+            className="flex w-full"
+            value={location}
+            onChange={handleChangeLocation}
           />
-          <button className="bg-gray-200 p-2" onClick={handleRefresh}>
-            Refresh
-          </button>
-          <button
-            className="bg-gray-200 p-2"
-            onClick={handlePlaySequence}
-            disabled={!sequence}
-          >
+          <Button onClick={handleRefresh}>Refresh</Button>
+          <Button onClick={handlePlaySequence} disabled={!sequence}>
             {running ? 'Pause' : 'Play'}
-          </button>
+          </Button>
         </div>
-        <div className="mt-10">
+        <div className="mt-2 border-b border-gray-400" />
+        <div className="mt-2">
           {sequence &&
-            sequence.map(({ prompt }, index) => (
+            sequence.map(({ prompt, selector, containerSelector }, index) => (
               <div
                 key={index}
-                className={`flex flex-row justify-between items-center gap-2 bg-white mb-2 p-2 ${
+                className={`flex flex-row justify-between items-center gap-2 bg-gray-800 text-white mb-2 p-2 ${
                   runningSequence === index ? 'bg-green-300' : ''
                 }`}
               >
-                <div className="flex flex-col">
-                  <span className="text-sm">{prompt.type}</span>
+                <div className="w-full flex flex-col">
+                  <div className="flex flex-row items-center justify-between">
+                    <div>{runningSequence === index && <Spinner />}</div>
+                    <div className="flex flex-row justify-end">
+                      <span className="text-sm bg-green-700 text-center px-4">
+                        {prompt.type}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-sm">Selector </span>
+                    <span className="text-sm text-gray-400">
+                      {containerSelector}
+                    </span>
+                  </div>
                   <span className="text-sm">{prompt.text}</span>
                 </div>
               </div>
             ))}
 
           {currentPrompt && (
-            <textarea
-              value={currentPrompt.text}
-              rows={10}
-              onChange={handleOnChange}
-              placeholder="Type here..."
-            />
+            <div className="flex flex-col gap-2">
+              <input
+                type="text"
+                placeholder="Set container..."
+                value={containerSelector}
+                onChange={handleChangeDocumentSelector}
+              />
+              <textarea
+                value={currentPrompt.text}
+                rows={3}
+                onChange={handleOnChange}
+                placeholder="Type here..."
+              />
+            </div>
           )}
           {!currentPrompt && (
             <div className="flex gap-2">
-              <button
-                className="bg-gray-200 p-2 flex-1"
-                onClick={handleOnAdd('action')}
-              >
-                Add action
-              </button>
-              <button
-                className="bg-gray-200 p-2 flex-1"
-                onClick={handleOnAdd('assert')}
-              >
-                Add assertion
-              </button>
+              <Button onClick={handleOnAdd('action')}>Add action</Button>
+              <Button onClick={handleOnAdd('assert')}>Add assertion</Button>
             </div>
           )}
           {currentPrompt && (
-            <button className="bg-green-300 p-2" onClick={handleOnSave}>
-              Save
-            </button>
+            <div className="flex flex-row justify-end mt-4 gap-2">
+              <Button onClick={handleOnCancel}>Cancel</Button>
+              <Button onClick={handleOnSave}>Save</Button>
+            </div>
           )}
         </div>
       </div>
@@ -233,7 +267,7 @@ function App() {
           id="iFrame"
           width="100%"
           height="100%"
-          src={LOCATION}
+          src={location}
         />
       </div>
     </div>

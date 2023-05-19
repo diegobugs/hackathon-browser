@@ -18,7 +18,7 @@ module.exports = {
     sourceType: 'module',
     project: './tsconfig.json',
   },
-  plugins: ['react', '@typescript-eslint', 'prettier', '@tanstack/query'],
+  plugins: ['react', '@typescript-eslint', 'prettier'],
   rules: {
     'react/react-in-jsx-scope': 0,
     'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
@@ -26,7 +26,5 @@ module.exports = {
     'react/function-component-definition': 0,
     'react/require-default-props': 0,
     'react/button-has-type': 0,
-    '@tanstack/query/exhaustive-deps': 'error',
-    '@tanstack/query/prefer-query-object-syntax': 'error',
   },
 }
