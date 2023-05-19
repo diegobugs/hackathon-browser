@@ -2,7 +2,7 @@ import { Configuration, OpenAIApi } from 'openai'
 
 const configuration = new Configuration({
   organization: 'org-scTtDRuncpaYiFm4kWWdLvUt',
-  apiKey: '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',
+  apiKey: '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',
 })
 
 export class Langchain {
@@ -49,11 +49,33 @@ export class Langchain {
     if (response && response.data.choices) {
       const { message } = response.data.choices[0]
 
-      return message?.content
+      return message?.content.trim()
     }
   }
 
   async retrieveElementSelector(element: string) {
+    const response = await this.model.createCompletion({
+      temperature: 0,
+      //model: 'gpt-3.5-turbo',
+      model: 'text-davinci-001',
+      prompt: `
+      Retrieve only the selector that matches the current element.
+      Output only a valid selector for the given element. Be the most precise as possible.
+
+      The current element is:
+      ${element}
+
+      `,
+    })
+
+    if (response && response.data.choices) {
+      const { text } = response.data.choices[0]
+
+      return text?.trim()
+    }
+  }
+
+  async retrieveElementSelectorChat(element: string) {
     const response = await this.model.createChatCompletion({
       temperature: 0,
       model: 'gpt-3.5-turbo',
@@ -74,7 +96,7 @@ export class Langchain {
     if (response && response.data.choices) {
       const { message } = response.data.choices[0]
 
-      return message?.content
+      return message?.content.trim()
     }
   }
 
@@ -98,7 +120,7 @@ export class Langchain {
     if (response && response.data.choices) {
       const { message } = response.data.choices[0]
 
-      const content = message?.content
+      const content = message?.content.trim()
       if (content) return actions.find((el) => content.includes(el))
     }
   }
