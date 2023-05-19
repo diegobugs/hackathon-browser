@@ -113,7 +113,7 @@ function App() {
 
                 if (element) {
                   // Get element selector
-                  const selector = await langchain.retrieveElementSelector(
+                  const selector = await langchain.retrieveElementSelectorChat(
                     element
                   )
                   setSequence((state) => {
@@ -173,6 +173,7 @@ function App() {
                   }
                 }
               } catch (error) {
+                console.log(error)
                 setSequence((state) => {
                   const newState = [...state]
                   newState[index].error = true
