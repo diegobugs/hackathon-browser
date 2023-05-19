@@ -1,19 +1,11 @@
 import React from 'react'
 
-interface SpinnerProps {
-  width?: number
-  height?: number
-}
-
-const Spinner: React.FunctionComponent<SpinnerProps> = ({
-  width = 8,
-  height = 8,
-}) => {
+const Spinner: React.FunctionComponent = () => {
   return (
     <div role="status">
       <svg
         aria-hidden="true"
-        className={`w-${width} h-${height} mr-2 text-gray-200 animate-spin dark:text-gray-600 fill-green-600`}
+        className="w-8 h-8 mr-2 text-gray-200 animate-spin dark:text-gray-600 fill-green-600"
         viewBox="0 0 100 101"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"

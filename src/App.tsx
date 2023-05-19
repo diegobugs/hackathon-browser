@@ -1,3 +1,4 @@
+/* eslint-disable react/no-array-index-key */
 import React, { useEffect, useRef, useState } from 'react'
 import { Langchain } from './langchain'
 import Button from './components/Button'
@@ -5,7 +6,7 @@ import Spinner from './components/Spinner'
 
 const LOCATION = 'http://localhost:3000'
 
-//const USER_PROMPT = 'Write Colima on the from field from the search form'
+// const USER_PROMPT = 'Write Colima on the from field from the search form'
 
 interface Prompt {
   type: string
@@ -16,13 +17,16 @@ interface Sequence {
   containerSelector: string
   prompt: Prompt
   selector?: string
+  type?: string
+  element?: string
+  value?: string
   error: boolean
 }
 
 // Function to wait until promise resolve in a given time
 const waitUntil = (timeout: number) => {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
+    setTimeout(() => {
       resolve(true)
     }, timeout)
   })
@@ -31,9 +35,10 @@ const waitUntil = (timeout: number) => {
 function App() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [currentPrompt, setCurrentPrompt] = useState<Prompt | null>()
-  const [sequence, setSequence] = useState<Sequence[]>([])
+  const [sequence, setSequence] = useState<Sequence[] | undefined>()
   const [running, setRunning] = useState<boolean>(false)
-  const [containerSelector, setContainerSelector] = useState<string>('')
+  const [currentContainerSelector, setCurrentContainerSelector] =
+    useState<string>('')
   const [runningSequence, setRunningSequence] = useState<number>()
   const [location, setLocation] = useState<string>(LOCATION)
 
@@ -69,100 +74,135 @@ function App() {
   const handleOnSave = () => {
     if (!currentPrompt) return
 
-    setSequence((state: any) => [
-      ...state,
-      {
-        containerSelector: containerSelector,
-        prompt: currentPrompt,
-        selector: '',
-        error: false,
-      },
-    ])
+    const newSequence = {
+      containerSelector: currentContainerSelector,
+      prompt: currentPrompt,
+      selector: '',
+      error: false,
+    }
+
+    setSequence((state: any) =>
+      state ? [...state, newSequence] : [newSequence]
+    )
     setCurrentPrompt(null)
   }
 
   const handlePlaySequence = async () => {
-    if (running) return
-    console.log('RUNNING')
-    setRunning(true)
-    const iframe = iframeRef.current
-    // Add event to catch iframe loaded event
-    const iDocument = iframe!.contentDocument
+    try {
+      if (running) return
+      setRunning(true)
+      const iframe = iframeRef.current
+      // Add event to catch iframe loaded event
+      const iDocument = iframe!.contentDocument
 
-    // Change background color of iframe
-    if (iDocument) {
-      const langchain = new Langchain()
+      // Change background color of iframe
+      if (iDocument) {
+        const langchain = new Langchain()
 
-      if (sequence && sequence.length > 0) {
-        const sequencesRunning = sequence.map(
-          async ({ prompt, containerSelector }, index) => {
-            console.log('containerSelector', containerSelector)
-            const content: any = iDocument.querySelector(containerSelector)
-            setRunningSequence(index)
+        if (sequence && sequence.length > 0) {
+          const sequencesRunning = sequence.map(
+            async ({ prompt, containerSelector }, index) => {
+              try {
+                const content: any = iDocument.querySelector(containerSelector)
+                setRunningSequence(index)
 
-            const element = await langchain.retrieveElement(
-              content.innerHTML,
-              prompt.text
-            )
+                const element = await langchain.retrieveElement(
+                  content.innerHTML,
+                  prompt.text
+                )
 
-            if (element) {
-              console.log('element', element)
-
-              // Get element selector
-              const selector = await langchain.retrieveElementSelector(element)
-
-              if (selector) {
-                // Get action from user input [click | type]
-                const action = await langchain.retrieveAction(prompt.text)
-
-                // Execute the action over the element
-                if (action) {
-                  const value = await langchain.retrieveValue(
-                    action,
-                    prompt.text
+                if (element) {
+                  // Get element selector
+                  const selector = await langchain.retrieveElementSelector(
+                    element
                   )
+                  setSequence((state) => {
+                    const newState = [...state]
+                    newState[index].element = element
+                    return newState
+                  })
 
-                  console.log('value', value)
-                  console.log('action', action)
-                  console.log('selector', selector)
-                  console.log('containerSelector', containerSelector)
+                  if (selector) {
+                    setSequence((state) => {
+                      const newState = [...state]
+                      newState[index].selector = selector
+                      return newState
+                    })
+                    // Get action from user input [click | type]
+                    const action = await langchain.retrieveAction(prompt.text)
 
-                  if (action === 'click') {
-                    const element = iDocument.querySelector(
-                      `${containerSelector} ${selector}`
-                    )
-                    console.log('element', element)
+                    // Execute the action over the element
+                    if (action) {
+                      setSequence((state) => {
+                        const newState = [...state]
+                        newState[index].type = action
+                        return newState
+                      })
+                      const value = await langchain.retrieveValue(
+                        action,
+                        prompt.text
+                      )
 
-                    if (element) {
-                      element.dispatchEvent(new Event('click'))
-                    }
-                  } else if (action === 'type') {
-                    const element = iDocument.querySelector(
-                      `${containerSelector} ${selector}`
-                    )
+                      setSequence((state) => {
+                        const newState = [...state]
+                        newState[index].value = value
+                        return newState
+                      })
 
-                    console.log('element', element)
-                    if (element) {
-                      element.dispatchEvent(new Event('click'))
-                      await waitUntil(1000)
-                      element.value = value
-                      element.dispatchEvent(new Event('input'))
+                      if (action === 'click') {
+                        const selectedElement = iDocument.querySelector(
+                          `${containerSelector} ${selector}`
+                        )
+
+                        if (selectedElement) {
+                          selectedElement.dispatchEvent(new Event('click'))
+                        }
+                      } else if (action === 'type') {
+                        const selectedElement = iDocument.querySelector(
+                          `${containerSelector} ${selector}`
+                        )
+
+                        if (selectedElement) {
+                          selectedElement.dispatchEvent(new Event('click'))
+                          await waitUntil(1000)
+                          selectedElement.value = value
+                          selectedElement.dispatchEvent(new Event('input'))
+                        }
+                      }
                     }
                   }
                 }
+              } catch (error) {
+                setSequence((state) => {
+                  const newState = [...state]
+                  newState[index].error = true
+                  return newState
+                })
+                throw error
               }
             }
-          }
-        )
-        await Promise.all(sequencesRunning)
-        setRunning(false)
-        setRunningSequence(undefined)
+          )
+          await Promise.all(sequencesRunning)
+          setRunning(false)
+          setRunningSequence(undefined)
+        }
       }
+    } catch (error) {
+      setRunning(false)
+      setRunningSequence(undefined)
     }
   }
 
   const handlePause = () => {
     setRunning(false)
+  }
+
+  const handlePlayPauseSequence = () => {
+    if (running) {
+      handlePause()
+    } else {
+      handlePlaySequence()
+    }
   }
 
   const handleRefresh = () => {
@@ -178,7 +218,7 @@ function App() {
 
   const handleChangeDocumentSelector = (event: any) => {
     const { value } = event.target
-    setContainerSelector(value)
+    setCurrentContainerSelector(value)
   }
 
   const handleChangeLocation = (event: any) => {
@@ -196,46 +236,80 @@ function App() {
             onChange={handleChangeLocation}
           />
           <Button onClick={handleRefresh}>Refresh</Button>
-          <Button onClick={handlePlaySequence} disabled={!sequence}>
+          <Button onClick={handlePlayPauseSequence} disabled={!sequence}>
             {running ? 'Pause' : 'Play'}
           </Button>
         </div>
         <div className="mt-2 border-b border-gray-400" />
         <div className="mt-2">
           {sequence &&
-            sequence.map(({ prompt, selector, containerSelector }, index) => (
-              <div
-                key={index}
-                className={`flex flex-row justify-between items-center gap-2 bg-gray-800 text-white mb-2 p-2 ${
-                  runningSequence === index ? 'bg-green-300' : ''
-                }`}
-              >
-                <div className="w-full flex flex-col">
-                  <div className="flex flex-row items-center justify-between">
-                    <div>{runningSequence === index && <Spinner />}</div>
-                    <div className="flex flex-row justify-end">
-                      <span className="text-sm bg-green-700 text-center px-4">
-                        {prompt.type}
+            sequence.map(
+              (
+                {
+                  prompt,
+                  containerSelector,
+                  selector,
+                  type,
+                  element,
+                  value,
+                  error,
+                },
+                index
+              ) => (
+                <div
+                  key={index}
+                  className="flex flex-row justify-between items-center gap-2 bg-gray-800 text-white mb-2 p-2"
+                >
+                  <div className="w-full flex flex-col">
+                    <div className="flex flex-row items-center justify-between">
+                      <div>
+                        {Number(runningSequence) === Number(index) && (
+                          <Spinner />
+                        )}
+                      </div>
+                      <div className="flex flex-row justify-end">
+                        <span
+                          className={`text-sm  text-center px-4 ${
+                            error ? 'bg-red-700' : 'bg-green-700'
+                          }`}
+                        >
+                          {prompt.type}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-sm">Container </span>
+                      <span className="text-sm text-gray-400">
+                        {containerSelector}
                       </span>
                     </div>
+                    <span className="text-sm">{prompt.text}</span>
+                    {selector && (
+                      <div className="p-2 bg-gray-900">
+                        <span className="text-xs">{element}</span>
+                        <span className="text-xs">{'> '}</span>
+                        <span className="text-xs">{type} </span>
+                        <span className="text-xs text-gray-400">
+                          {selector}
+                        </span>
+                        {value && (
+                          <span className="text-xs bg-gray-400 px-2">
+                            {value}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-sm">Selector </span>
-                    <span className="text-sm text-gray-400">
-                      {containerSelector}
-                    </span>
-                  </div>
-                  <span className="text-sm">{prompt.text}</span>
                 </div>
-              </div>
-            ))}
+              )
+            )}
 
           {currentPrompt && (
             <div className="flex flex-col gap-2">
               <input
                 type="text"
                 placeholder="Set container..."
-                value={containerSelector}
+                value={currentContainerSelector}
                 onChange={handleChangeDocumentSelector}
               />
               <textarea
