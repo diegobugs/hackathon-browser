@@ -23,6 +23,7 @@ interface Sequence {
   element?: string
   value?: string
   error: boolean
+  action?: string
 }
 
 // Function to wait until promise resolve in a given time
@@ -128,7 +129,7 @@ function App() {
           if (action) {
             setSequence((state) => {
               const newState = [...state]
-              newState[index].type = action
+              newState[index].action = action
               return newState
             })
             const value = await langchain.retrieveValue(action, prompt.text)
@@ -193,7 +194,7 @@ function App() {
       if (assert) {
         setSequence((state) => {
           const newState = [...state]
-          newState[index].type = assert
+          newState[index].action = assert
           return newState
         })
         const value = await langchain.retrieveValue(assert, prompt.text)
@@ -266,21 +267,28 @@ function App() {
 
   const handlePlaySequence = async () => {
     try {
+      console.log('handlePlaySequence 1')
+
       if (running) return
       setRunning(true)
+      console.log('handlePlaySequence 2')
 
       const iframe = iframeRef.current
       // Add event to catch iframe loaded event
       const iDocument = iframe!.contentDocument
+      console.log('iDocument', iDocument)
 
       // Change background color of iframe
       if (iDocument) {
         if (sequence && sequence.length > 0) {
+          console.log('hay sequence ')
           for (let index = 0; index < sequence.length; index++) {
+            console.log('for each capo')
             try {
               const { prompt, containerSelector, type } = sequence[index]
 
               setRunningSequence(index)
+              console.log('running ', index, type, prompt)
 
               if (type === 'assert') {
                 await handleAssertSequence(
@@ -322,6 +330,8 @@ function App() {
   }
 
   const handlePlayPauseSequence = () => {
+    console.log('running ', running)
+
     if (running) {
       handlePause()
     } else {
@@ -337,6 +347,26 @@ function App() {
     const iframe = iframeRef.current
     if (iframe) {
       iframe.src = location
+    }
+
+    // Reset the sequence
+    if (sequence && sequence.length > 0) {
+      for (let index = 0; index < sequence.length; index++) {
+        const element = sequence[index]
+        const resetSequence = {
+          ...element,
+          error: undefined,
+          element: undefined,
+          selector: undefined,
+          value: undefined,
+        }
+
+        setSequence((state) => {
+          const newState = [...state]
+          newState[index] = resetSequence
+          return newState
+        })
+      }
     }
   }
 
@@ -378,7 +408,7 @@ function App() {
                   prompt,
                   containerSelector,
                   selector,
-                  type,
+                  action,
                   element,
                   value,
                   error,
@@ -419,7 +449,7 @@ function App() {
                       <div className="p-2 bg-gray-900">
                         <span className="text-xs">{element}</span>
                         <span className="text-xs">{'> '}</span>
-                        <span className="text-xs">{type} </span>
+                        <span className="text-xs">{action} </span>
                         <span className="text-xs text-gray-400">
                           {selector}
                         </span>
